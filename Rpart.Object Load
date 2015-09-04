@@ -1,0 +1,124 @@
+require(shinydashboard)||install.packages("shinydashboard"); library(shinydashboard)  
+require(shiny)||install.packages("shiny"); library(shiny)  
+require(shinyjs)||install.packages("shinyjs"); library(shinyjs) 
+
+
+ui <- fluidPage(
+  useShinyjs(),
+  extendShinyjs(text = "shinyjs.refresh = function() { location.reload(); }"),
+  fluidPage(id="Q1",useShinyjs(),
+            
+            dashboardPage(dashboardHeader(title="Test",titleWidth=400),
+                          dashboardSidebar(),
+                          
+                          dashboardBody (
+                            
+                            
+                            tabItem("PMData",
+                                    fileInput('filepm', 'Choose Data to Upload',accept = c(".R")),
+                                    uiOutput('ui.PM2'),
+                                    actionButton("savepm","Save"),
+                                    uiOutput("ui.PM3")
+                            )
+                          )
+            )
+            
+  ))
+
+server <- function(session,input,output){
+  
+  hide("savepm")
+  
+  dfPM <<- data.frame(Category=character(),
+                      PredictiveModel=character(),
+                      OfferIdentifier=character(),
+                      stringsAsFactors=FALSE)
+  
+  
+  
+  
+  LoadToEnvironment <<- function(RData, env = new.env())
+  {  
+    load(RData, env)  
+    return(env) }
+  
+  val_choices <- reactive({
+    if (is.null(input$filepm)){
+      return()      
+    }
+    infile <- input$filepm    
+    e <- LoadToEnvironment(infile$datapath)
+    e$val_b
+  }) 
+  
+  
+  
+  observeEvent(input$filepm,{
+    
+    useShinyjs()
+    if (is.null(input$filepm)){
+      return()      
+    }
+    
+    output$ui.PM2 <- renderUI ({
+      selectInput("offered",label= "Offered Test",choices = val_choices(),
+                  selected = NULL)
+    })
+    show("ui.PM2")
+    show("savepm")
+  })
+  
+  val_pmfile <- reactive({
+    if (is.null(input$filepm)){
+      return()      
+    }
+    infile <- input$filepm
+    infile$datapath
+  }) 
+  
+  TempPredmodDF <- reactive({
+    if(is.null(input$offered))
+    {
+      return()
+    }else{
+      data.frame(Category="Test",
+                 PredictiveModel=val_pmfile(),
+                 OfferIdentifier=input$offered,
+                 stringsAsFactors=FALSE)}
+  })
+  
+  observeEvent(input$savepm,
+{  
+  useShinyjs()
+  
+  tempPMdf <- TempPredmodDF()
+  
+  
+  if(nrow(dfPM[dfPM$Category==tempPMdf$Category,]) == 0)
+  {
+    dfPM <<- rbind(dfPM,tempPMdf)
+  }else
+  {
+    getidx <- as.numeric(which( dfPM[,1] == tempPMdf$Category ))
+    
+    dfPM[getidx,2] <<- tempPMdf$PredictiveModel
+    
+    dfPM[getidx,3] <<- tempPMdf$OfferIdentifier
+    
+  }
+  
+  output$ui.PM3 <- renderTable({
+    dfPM},include.rownames=FALSE)
+  
+  hide("ui.PM2")
+  hide("savepm")
+  show("ui.PM3")
+  
+})
+
+}
+
+
+app <- shinyApp(ui,server)
+
+runApp(app,port = 7000,launch.browser = getOption("shiny.launch.browser", interactive()))
